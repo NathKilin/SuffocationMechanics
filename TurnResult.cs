@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 
 public enum TurnResult { Continue, PlayerDied, EnemyDied }
@@ -51,12 +50,12 @@ public class Match
         int maxGood  = Math.Min(_s.PlayerInventory.GoodCount,  6);
         int maxToxic = Math.Min(_s.PlayerInventory.ToxicCount, 6);
 
-        Display.ShowBetStep(_s, $"How many BREATHABLES to bet? (max {maxGood})", maxGood);
+        Display.ShowBetStep(_s, $"How many Breathable to bet? (max {maxGood})", maxGood);
         int goodBet = ReadInt(1, maxGood);
         Display.HideInput();
         Display.ShortPause();
 
-        Display.ShowBetStep(_s, $"How many TOXIC to bet? (max {maxToxic})", maxToxic, alreadyChosenGood: goodBet);
+        Display.ShowBetStep(_s, $"How many Toxic to bet? (max {maxToxic})", maxToxic, alreadyChosenGood: goodBet);
         int toxicBet = ReadInt(1, maxToxic);
         Display.HideInput();
         Display.ShortPause();
@@ -83,6 +82,8 @@ public class Match
         Display.ShortPause();
 
         int  correct = _rng.Next(1, 3);
+        // Subtle first-match advantage: the correct hand always matches the player's choice
+        if (_s.MatchNumber == 1) correct = choice;
         bool won     = choice == correct;
         string where = correct == 1 ? "LEFT" : "RIGHT";
         string result = won
@@ -106,7 +107,7 @@ public class Match
 
             if (_s.PlayerHealth <= 0)
             {
-                Display.Render(_s, "You suffocate before you can act. YOU LOSE.");
+                Display.Render(_s, "You suffocate before you can act. You lose.");
                 Display.Pause();
                 return TurnResult.PlayerDied;
             }
@@ -127,9 +128,9 @@ public class Match
         {
             // Note (future): design allows cancelling the gun before the next step
             _s.EmptyGunPrimed = true;
-            Display.Render(_s, "You activate the Empty Gun under the table... it's loaded!");
+            Display.Render(_s, "You load the Empty Gun under the table... it's aimed. Next enemy turn: they MUST inhale.");
             Display.ShortPause();
-            return DoCapsuleSubMenu("Empty Gun loaded — now continue your turn...");
+            return DoCapsuleSubMenu("Empty Gun primed — now choose your capsule act:");
         }
 
         if (chosen.action == TurnAction.UseSerum)
@@ -137,9 +138,9 @@ public class Match
             _s.SerumUsedThisMatch  = true;
             _s.SerumActiveThisTurn = true;
             _s.PlayerSerumCount--;
-            Display.Render(_s, "You inject the Surfactant Serum: next capsule effect is DOUBLED");
+            Display.Render(_s, "You inject the Surfactant Serum... next capsule effect is DOUBLED. No turning back.");
             Display.ShortPause();
-            return DoCapsuleSubMenu("SERUM INJECTED — now continue your turn...");
+            return DoCapsuleSubMenu("SERUM ACTIVE — choose your capsule act (effect will be doubled):");
         }
 
         return ExecuteAction(chosen.action, forPlayer: true);
@@ -171,7 +172,7 @@ public class Match
 
             if (_s.EnemyHealth <= 0)
             {
-                Display.Render(_s, "The enemy suffocates. You WIN!");
+                Display.Render(_s, "The enemy suffocates. You win!");
                 Display.Pause();
                 return TurnResult.EnemyDied;
             }
@@ -184,7 +185,7 @@ public class Match
             _s.EmptyGunUsedThisMatch = true;
             Display.Render(_s, "You raise the Empty Gun from under the table...");
             Display.Pause();
-            Display.Render(_s, "The enemy's eyes go shocked. He got no choice.");
+            Display.Render(_s, "The enemy's eyes go wide. They have no choice.");
             Display.ShortPause();
             return DoActivate(forPlayer: false);
         }
@@ -228,8 +229,14 @@ public class Match
             return DoDiscard(forPlayer);
         }
 
-        Capsule drawn     = _s.AirPump.DrawRandom();
-        bool    isGood    = drawn.Type == CapsuleType.Good;
+        // First match subtle advantage: if there's at least one good capsule, the player always draws it
+        // If odds are 0% (no good capsules) nothing can be done — purely random in that case
+        Capsule drawn;
+        if (forPlayer && _s.MatchNumber == 1 && _s.AirPump.GoodCount > 0)
+            drawn = _s.AirPump.TakeOne(CapsuleType.Good);
+        else
+            drawn = _s.AirPump.DrawRandom();
+        bool isGood = drawn.Type == CapsuleType.Good;
         bool    serum     = forPlayer && _s.SerumActiveThisTurn;
         if (serum) _s.SerumActiveThisTurn = false; // serum consumed after this capsule act
 
@@ -248,7 +255,7 @@ public class Match
                 int dmg = serum ? 4 : 2;
                 _s.PlayerHealth -= dmg;
                 Display.Render(_s, serum
-                    ? "You inhale...  TOXIC!  SERUM DOUBLES IT :(  -4 Breath."
+                    ? "You inhale...  TOXIC!  SERUM DOUBLES IT!  -4 Breath."
                     : "You inhale...  TOXIC!  -2 Breath.");
             }
         }
@@ -257,12 +264,12 @@ public class Match
             if (isGood)
             {
                 _s.EnemyHealth = Math.Min(_s.EnemyHealth + 1, _s.MaxHealth);
-                Display.Render(_s, "The enemy inhales...  BREATHABLE.  Enemy +1 Breath.");
+                Display.Render(_s, "The enemy inhales...  Breathable.  Enemy +1 Breath.");
             }
             else
             {
                 _s.EnemyHealth -= 2;
-                Display.Render(_s, "The enemy inhales...  TOXIC.  Enemy -2 Breath.");
+                Display.Render(_s, "The enemy inhales...  Toxic.  Enemy -2 Breath.");
             }
         }
 
@@ -293,8 +300,8 @@ public class Match
         else           _s.EnemyHealth  -= dmg;
 
         Display.Render(_s, serum
-            ? $"You hold breath... and serum doubles it... -2 Breath.  {capsuleInfo}"
-            : $"{who} hold{(forPlayer ? "" : "s")} breath. -1 Breath.  {capsuleInfo}");
+            ? $"You hold breath. SERUM DOUBLES IT! -2 extra Breath.  {capsuleInfo}"
+            : $"{who} hold{(forPlayer ? "" : "s")} breath. -1 extra Breath.  {capsuleInfo}");
         Display.Pause();
         return CheckDeath();
     }
@@ -366,7 +373,7 @@ public class Match
             list.Add(("Use Empty Gun — forces enemy to inhale next turn", TurnAction.UseEmptyGun));
 
         if (_s.PlayerSerumCount > 0 && !_s.SerumUsedThisMatch)
-            list.Add(($"Use Surfactant Serum  [{_s.PlayerSerumCount} left] — doubles your next result", TurnAction.UseSerum));
+            list.Add(($"Use Surfactant Serum  [{_s.PlayerSerumCount} left] — doubles next capsule effect", TurnAction.UseSerum));
 
         return list;
     }
@@ -381,11 +388,11 @@ public class Match
         if (pumpHasCaps)
             list.Add(("Inhale — activate a random capsule from the pump", TurnAction.Activate));
 
-        list.Add(("Hold breath — discard a capsule without inhaling, -1 Breath", TurnAction.Discard));
+        list.Add(("Hold breath — discard a capsule without inhaling, -1 extra Breath", TurnAction.Discard));
 
         // Same rule: allow adding from inventory even if pump is empty
         if (inv.Count > 0)
-            list.Add(("Add from your inventory to the pump then activate randomly", TurnAction.AddAndActivate));
+            list.Add(("Add from your inventory to the pump, then activate", TurnAction.AddAndActivate));
 
         return list;
     }

@@ -1,5 +1,4 @@
-﻿using System;
-using System.Threading;
+﻿using System.Threading;
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 Console.CursorVisible = false;
@@ -10,7 +9,7 @@ try { Console.SetWindowSize(80, 36); } catch { }
 Console.Clear();
 Console.ForegroundColor = ConsoleColor.White;
 Console.WriteLine("\n\n  ╔══════════════════════════════════╗");
-Console.WriteLine("  ║     S U F F O C A T I O N       ║");
+Console.WriteLine("  ║     S U F F O C A T I O N        ║");
 Console.WriteLine("  ╚══════════════════════════════════╝\n");
 Console.WriteLine("  Mechanics Prototype\n");
 Console.ForegroundColor = ConsoleColor.Gray;
